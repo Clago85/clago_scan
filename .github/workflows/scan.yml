@@ -4,6 +4,11 @@ name: Daily Scan
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Ignora finestra oraria 9-23 (test)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -31,7 +36,7 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
           COINALYZE_API_KEY: ${{ secrets.COINALYZE_API_KEY }}
-        run: python scan.py
+        run: python scan.py ${{ inputs.force && '--force' || '' }}
 
       - name: Commit state
         run: |
