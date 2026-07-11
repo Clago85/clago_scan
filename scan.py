@@ -36,7 +36,7 @@ ATR_CONSUMED_MAX = 0.70
 LEVEL_PROX = 0.015
 MIN_RR = 2.0
 FUNDING_CROWDED = 0.0005
-WINDOW = (9, 23)
+WINDOW = (9, 23)   # run ammessi dalle 9:00 alle 22:59
 
 UNIVERSE = {
     "BTC": "MAJ", "ETH": "MAJ",
@@ -428,6 +428,8 @@ def analyze_symbol(a, src, real, chg24, qvol, btc24):
     a14 = atr(kd[:-1], 14)
     today_range = float(kd[-1][2]) - float(kd[-1][3])
     atr_used = today_range / a14 if a14 else 1.0
+    atr_pct = (a14 / px) if (a14 and px) else 0.02
+    prox_thr = min(0.03, max(0.008, 0.25 * atr_pct))  # 25% dell'ATR giornaliero, tra 0.8% e 3%
     pd_h, pd_l = float(kd[-2][2]), float(kd[-2][3])
     wk_open = float(kd[-8][1]) if len(kd) >= 8 else float(kd[0][1])
     levels = {"PDH": pd_h, "PDL": pd_l, "WO": wk_open}
@@ -435,7 +437,8 @@ def analyze_symbol(a, src, real, chg24, qvol, btc24):
     near_dist = abs(px - near_px) / px
     return {"sym": a, "src": src, "real": real, "px": px, "qvol": qvol,
             "tier": tier_of(qvol), "cluster": UNIVERSE[a], "rvol": rvol,
-            "atr_d": a14, "atr_used": atr_used, "p24": chg24, "rs": chg24 - btc24,
+            "atr_d": a14, "atr_used": atr_used, "prox_thr": prox_thr,
+            "p24": chg24, "rs": chg24 - btc24,
             "struct": swing_structure(kh4, 30), "vwap": session_vwap(kh1),
             "rsi_h1": rsi([float(k[4]) for k in kh1], 14),
             "near": near_name, "near_px": near_px, "near_dist": near_dist,
@@ -448,22 +451,30 @@ def prefilter_ok(d):
     if d["sym"] in ("BTC", "ETH"): return True
     checks = 0
     if d["rvol"] >= RVOL_MIN: checks += 1
-    if d["near_dist"] <= LEVEL_PROX: checks += 1
+    if d["near_dist"] <= d["prox_thr"]: checks += 1
     if d["atr_used"] <= ATR_CONSUMED_MAX: checks += 1
     return checks >= 2
 
 
-def l4_read(px24, oi24, funding, cvd):
+def crowded_thr(cluster):
+    return {"MAJ": 0.0003, "MEME": 0.001}.get(cluster, FUNDING_CROWDED)
+
+
+def l4_read(px24, oi24, funding, cvd, cluster=""):
+    # soglie per tipo di coin: majors si muovono meno, meme molto di più
+    oi_thr = {"MAJ": 1.5, "MEME": 4.0}.get(cluster, 2.0)
+    px_thr = {"MAJ": 0.5, "MEME": 2.0}.get(cluster, 1.0)
+    fthr = crowded_thr(cluster)
     s = 0
     if oi24 is not None:
-        if px24 > 1 and oi24 > 2: s += 1
-        elif px24 < -1 and oi24 > 2: s -= 1
-        elif px24 < -1 and oi24 < -2: s += 0.5
+        if px24 > px_thr and oi24 > oi_thr: s += 1
+        elif px24 < -px_thr and oi24 > oi_thr: s -= 1
+        elif px24 < -px_thr and oi24 < -oi_thr: s += 0.5
     if cvd > 0.03: s += 0.5
     elif cvd < -0.03: s -= 0.5
     if funding is not None:
-        if funding > FUNDING_CROWDED: s -= 0.5
-        elif funding < -FUNDING_CROWDED: s += 0.5
+        if funding > fthr: s -= 0.5
+        elif funding < -fthr: s += 0.5
     return s
 
 
@@ -543,7 +554,7 @@ def main():
         s = min(d["rvol"], 4) * 0.8
         s += max(min(abs(d["rs"]) / 2, 2), 0)
         if d["struct"] in ("UP", "DOWN"): s += 1
-        if d["near_dist"] <= LEVEL_PROX: s += 1
+        if d["near_dist"] <= d["prox_thr"]: s += 1
         if d["atr_used"] <= ATR_CONSUMED_MAX: s += 0.5
         d["l3"] = s
         d["dir0"] = "LONG" if (d["rs"] > 0 and d["struct"] != "DOWN") else \
@@ -565,7 +576,7 @@ def main():
             d["oi_x"] = d.get("oi_24h"); d["oi_24h"] = c["oi_24h"]; d["oi_aggr"] = True
         if c.get("funding") is not None:
             d["fund_x"] = d.get("funding"); d["funding"] = c["funding"]; d["fund_aggr"] = True
-        d["l4"] = l4_read(d["p24"], d.get("oi_24h"), d.get("funding"), der["cvd"])
+        d["l4"] = l4_read(d["p24"], d.get("oi_24h"), d.get("funding"), der["cvd"], d["cluster"])
         if d["dir0"] == "LONG" and d["l4"] < -0.5: d["dir0"] = None
         if d["dir0"] == "SHORT" and d["l4"] > 0.5: d["dir0"] = None
         d["score"] = d["l3"] + (d["l4"] if d["dir0"] == "LONG"
@@ -575,13 +586,14 @@ def main():
     for d in cands:
         if len(final) >= remaining: break
         if any(p["sym"] == d["sym"] and p["dir"] == d["dir0"] for p in already): continue
-        if reg["bias"] == "FLAT": break
+        if reg["bias"] == "FLAT" and not (d["score"] >= 6.5 and d["rvol"] >= 2.0): continue
         if reg["bias"] == "LONG" and d["dir0"] == "SHORT" and d["score"] < 6: continue
         if reg["bias"] == "SHORT" and d["dir0"] == "LONG" and d["score"] < 6: continue
         f = d.get("funding")
         if f is not None:
-            if d["dir0"] == "LONG" and f > FUNDING_CROWDED: continue
-            if d["dir0"] == "SHORT" and f < -FUNDING_CROWDED: continue
+            fthr = crowded_thr(d["cluster"])
+            if d["dir0"] == "LONG" and f > fthr: continue
+            if d["dir0"] == "SHORT" and f < -fthr: continue
         setup = build_setup(d, d["dir0"])
         if not setup: continue
         if any(x["cluster"] == d["cluster"] and x["dir0"] == d["dir0"] for x in final): continue
