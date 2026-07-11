@@ -123,7 +123,8 @@ def coinalyze_batch(assets):
             for it in r.json() or []:
                 sym = it.get("symbol"); v = it.get("value")
                 if sym in m and v is not None:
-                    out.setdefault(m[sym], {})["funding"] = float(v)
+                    # Coinalyze restituisce % per 8h -> converti in frazione
+                    out.setdefault(m[sym], {})["funding"] = float(v) / 100.0
         time.sleep(3)
         r = S.get(f"{CLZ}/open-interest-history", headers=h, timeout=25,
                   params={"symbols": csv, "interval": "1hour",
