@@ -58,7 +58,112 @@ TIER_A = 400e6
 TIER_B = 100e6
 
 S = requests.Session()
-S.headers.update({"User-Agent": "clago-scan/1.1"})
+S.headers.update({"User-Agent": "clago-scan/1.2"})
+
+EXCH = {"BIN": True, "OKX": True, "BGET": True}
+
+
+def probe_exchanges():
+    global EXCH
+    for name, url in (("BIN", f"{FAPI}/fapi/v1/ping"),
+                      ("OKX", f"{OKX}/api/v5/public/time"),
+                      ("BGET", f"{BGET}/api/v2/public/time")):
+        try:
+            get(url, timeout=8, retries=1)
+            EXCH[name] = True
+        except Exception:
+            EXCH[name] = False
+    if os.environ.get("NO_BIN"):
+        EXCH["BIN"] = False  # per test fallback
+    print(f"[probe] Binance={'OK' if EXCH['BIN'] else 'BLOCCATA'} · OKX={'OK' if EXCH['OKX'] else 'NO'} · Bitget={'OK' if EXCH['BGET'] else 'NO'}")
+
+
+def kl_btc(interval, limit):
+    if EXCH["BIN"]: return kl_binance("BTCUSDT", interval, limit)
+    if EXCH["OKX"]: return kl_okx("BTC-USDT-SWAP", interval, limit)
+    return kl_bitget("BTCUSDT", interval, limit)
+
+
+def cvd_okx(real, bars=24):
+    try:
+        base = real.split("-")[0]
+        d = get(f"{OKX}/api/v5/rubik/stat/taker-volume",
+                {"ccy": base, "instType": "CONTRACTS", "period": "1H"})["data"]
+        d = sorted(d, key=lambda r: int(r[0]))[-bars:]
+        buy = sum(float(r[2]) for r in d); sell = sum(float(r[1]) for r in d)
+        tot = buy + sell
+        return (buy - sell) / tot if tot > 0 else 0.0
+    except Exception:
+        return 0.0
+
+
+CLZ = "https://api.coinalyze.net/v1"
+CLZ_KEY = os.environ.get("COINALYZE_API_KEY", "").strip()
+KRAKEN = "https://api.kraken.com"
+
+
+def clz_symbol(a):
+    if a in ("BONK", "PEPE", "FLOKI", "SHIB"):
+        return f"1000{a}USDT_PERP.A"
+    return f"{a}USDT_PERP.A"
+
+
+def coinalyze_batch(assets):
+    """OI 24h % e funding AGGREGATI multi-exchange (Binance inclusa)."""
+    out = {}
+    if not CLZ_KEY or not assets:
+        return out
+    try:
+        m = {clz_symbol(a): a for a in assets}
+        csv = ",".join(m)
+        h = {"api_key": CLZ_KEY}
+        now = int(time.time())
+        r = S.get(f"{CLZ}/funding-rate", params={"symbols": csv}, headers=h, timeout=25)
+        if r.status_code == 200:
+            for it in r.json() or []:
+                sym = it.get("symbol"); v = it.get("value")
+                if sym in m and v is not None:
+                    out.setdefault(m[sym], {})["funding"] = float(v)
+        time.sleep(3)
+        r = S.get(f"{CLZ}/open-interest-history", headers=h, timeout=25,
+                  params={"symbols": csv, "interval": "1hour",
+                          "from": now - 25 * 3600, "to": now, "convert_to_usd": "true"})
+        if r.status_code == 200:
+            for it in r.json() or []:
+                sym = it.get("symbol"); hist = it.get("history") or []
+                if sym in m and len(hist) >= 2:
+                    hist = sorted(hist, key=lambda x: x.get("t", 0))
+                    a0, b0 = float(hist[0]["c"]), float(hist[-1]["c"])
+                    if a0:
+                        out.setdefault(m[sym], {})["oi_24h"] = (b0 / a0 - 1) * 100
+    except Exception as e:
+        print(f"[warn] coinalyze: {e}")
+    return out
+
+
+def cross_prices(a, src, real, px):
+    """Confronta il prezzo con altre fonti (OKX, Bitget, Kraken). -> (n_fonti, max_dev_%)"""
+    if real.startswith("1000"):
+        px = px / 1000.0
+    prices = []
+    if src != "OKX" and EXCH["OKX"]:
+        try:
+            t = get(f"{OKX}/api/v5/market/ticker", {"instId": f"{a}-USDT-SWAP"})["data"]
+            if t: prices.append(float(t[0]["last"]))
+        except Exception: pass
+    if src != "BGET" and EXCH["BGET"]:
+        try:
+            t = get(f"{BGET}/api/v2/mix/market/ticker",
+                    {"symbol": a + "USDT", "productType": "USDT-FUTURES"})["data"]
+            if t: prices.append(float(t[0]["lastPr"]))
+        except Exception: pass
+    try:
+        r = get(f"{KRAKEN}/0/public/Ticker", {"pair": a + "USD"})
+        for v in (r.get("result") or {}).values():
+            prices.append(float(v["c"][0])); break
+    except Exception: pass
+    devs = [abs(p / px - 1) * 100 for p in prices if p > 0]
+    return (1 + len(devs), max(devs) if devs else 0.0)
 
 
 def get(url, params=None, timeout=20, retries=3):
@@ -113,12 +218,14 @@ def klines(src, real, interval, limit):
 
 
 def resolve_universe():
-    info = get(f"{FAPI}/fapi/v1/exchangeInfo")
-    perps = {s["symbol"] for s in info["symbols"]
-             if s.get("contractType") == "PERPETUAL" and s.get("status") == "TRADING"
-             and s.get("quoteAsset") == "USDT"}
-    tick = {t["symbol"]: t for t in get(f"{FAPI}/fapi/v1/ticker/24hr")}
-    okx_insts = None
+    perps, tick = set(), {}
+    if EXCH["BIN"]:
+        info = get(f"{FAPI}/fapi/v1/exchangeInfo")
+        perps = {s["symbol"] for s in info["symbols"]
+                 if s.get("contractType") == "PERPETUAL" and s.get("status") == "TRADING"
+                 and s.get("quoteAsset") == "USDT"}
+        tick = {t["symbol"]: t for t in get(f"{FAPI}/fapi/v1/ticker/24hr")}
+    okx_ticks = None
     res, tk = {}, {}
     for a in UNIVERSE:
         cands = [a + "USDT", "1000" + a + "USDT"]
@@ -128,14 +235,19 @@ def resolve_universe():
             t = tick[hit]
             tk[a] = (float(t["priceChangePercent"]), float(t["quoteVolume"]))
             continue
-        if okx_insts is None:
-            data = get(f"{OKX}/api/v5/public/instruments", {"instType": "SWAP"})["data"]
-            okx_insts = {d["instId"] for d in data if d.get("state") == "live"}
+        if okx_ticks is None:
+            okx_ticks = {}
+            if EXCH["OKX"]:
+                try:
+                    data = get(f"{OKX}/api/v5/market/tickers", {"instType": "SWAP"})["data"]
+                    okx_ticks = {d["instId"]: d for d in data}
+                except Exception:
+                    okx_ticks = {}
         inst = f"{a}-USDT-SWAP"
-        if inst in okx_insts:
+        if inst in okx_ticks:
             res[a] = ("OKX", inst)
             try:
-                t = get(f"{OKX}/api/v5/market/ticker", {"instId": inst})["data"][0]
+                t = okx_ticks[inst]
                 last, o24 = float(t["last"]), float(t["open24h"])
                 chg = (last / o24 - 1) * 100 if o24 else 0
                 qv = float(t.get("volCcy24h", 0)) * last
@@ -172,6 +284,14 @@ def oi_24h_of(src, real):
                      {"symbol": real, "period": "1h", "limit": 25})
             if oi and len(oi) >= 2:
                 a, b = float(oi[0]["sumOpenInterestValue"]), float(oi[-1]["sumOpenInterestValue"])
+                return (b / a - 1) * 100 if a else None
+        if src == "OKX":
+            base = real.split("-")[0]
+            d = get(f"{OKX}/api/v5/rubik/stat/contracts/open-interest-volume",
+                    {"ccy": base, "period": "1H"})["data"]
+            if d and len(d) >= 2:
+                d = sorted(d, key=lambda r: int(r[0]))[-25:]
+                a, b = float(d[0][1]), float(d[-1][1])
                 return (b / a - 1) * 100 if a else None
     except Exception:
         pass
@@ -237,8 +357,8 @@ def cvd_proxy(kl_h1, bars=24):
 
 def regime(state):
     out = {"notes": []}
-    kd = kl_binance("BTCUSDT", "1d", 60)
-    kh4 = kl_binance("BTCUSDT", "4h", 60)
+    kd = kl_btc("1d", 60)
+    kh4 = kl_btc("4h", 60)
     closes_d = [float(k[4]) for k in kd]
     px = closes_d[-1]
     hi20 = max(float(k[2]) for k in kd[-21:-1]); lo20 = min(float(k[3]) for k in kd[-21:-1])
@@ -394,6 +514,7 @@ def main():
     already = day["proposed"]
     remaining = MAX_TRADES - len(already)
     first_run = not day.get("ran", False)
+    probe_exchanges()
     reg = regime(state)
     print(f"L1: bias={reg['bias']} (score {reg['score']}) | BTC D1={reg['btc_d1']} H4={reg['btc_h4']} {reg['btc_24h']:+.2f}%")
     gold_line = "🥇 Oro: dati non disponibili"
@@ -431,12 +552,19 @@ def main():
     def _der(d):
         return {"oi_24h": oi_24h_of(d["src"], d["real"]),
                 "funding": funding_of(d["src"], d["real"]),
-                "cvd": cvd_proxy(d["kh1"], 24)}
+                "cvd": cvd_proxy(d["kh1"], 24) if d["src"] == "BIN"
+                       else cvd_okx(d["real"]) if d["src"] == "OKX" else 0.0}
     with ThreadPoolExecutor(max_workers=4) as ex:
         ders = list(ex.map(_der, shortlist))
+    clz = coinalyze_batch([d["sym"] for d in shortlist])
     for d, der in zip(shortlist, ders):
         d.update(der)
-        d["l4"] = l4_read(d["p24"], der["oi_24h"], der["funding"], der["cvd"])
+        c = clz.get(d["sym"], {})
+        if c.get("oi_24h") is not None:
+            d["oi_x"] = d.get("oi_24h"); d["oi_24h"] = c["oi_24h"]; d["oi_aggr"] = True
+        if c.get("funding") is not None:
+            d["fund_x"] = d.get("funding"); d["funding"] = c["funding"]; d["fund_aggr"] = True
+        d["l4"] = l4_read(d["p24"], d.get("oi_24h"), d.get("funding"), der["cvd"])
         if d["dir0"] == "LONG" and d["l4"] < -0.5: d["dir0"] = None
         if d["dir0"] == "SHORT" and d["l4"] > 0.5: d["dir0"] = None
         d["score"] = d["l3"] + (d["l4"] if d["dir0"] == "LONG"
@@ -469,6 +597,10 @@ def main():
     if reg.get("btc_s") is not None:
         db = reg.get("d_btc_s"); ds = reg.get("d_stables"); dt = reg.get("d_total_alts")
         L.append(f"BTC.S (ex-stables) {reg['btc_s']:.1f}%{f' ({db:+.2f})' if db is not None else ''} · Stables.D {reg['stables_pct']:.2f}%{f' ({ds:+.2f})' if ds is not None else ''} · TOTAL alts ${reg['total_alts']:.0f}B{f' ({dt:+.1f}%)' if dt is not None else ''}")
+    if not EXCH["BIN"]:
+        L.append("ℹ️ prezzi via OKX (Binance non raggiungibile dal server)")
+    if CLZ_KEY:
+        L.append("ℹ️ OI/funding: Coinalyze aggregato multi-exchange (Binance inclusa)")
     L.append(gold_line)
     L.append("⚠️ <b>L2 eventi:</b> check manuale macro USA / unlock / listing prima di eseguire")
     L.append(f"\n<b>Funnel:</b> {len(rows)} → {len(passed)} pre-filtro → {len(shortlist)} scoring → {len(final)} trade · <b>oggi {len(already)}/{MAX_TRADES}</b>")
@@ -489,7 +621,11 @@ def main():
         L.append("<b>Livelli:</b> " + (" · ".join(lv) if lv else "nessun livello vicino nei 20g"))
         L.append(f"<b>SL/TP li decidi tu</b> — riferimenti vol.: SL {fmt(s['stop'])} (0.28 ATR) · 2.2R = {fmt(s['target'])}")
         oi = d.get("oi_24h"); fu = d.get("funding")
-        L.append(f"RS vs BTC {d['rs']:+.1f}% · RVOL {d['rvol']:.1f}x · OI 24h {f'{oi:+.1f}%' if oi is not None else 'n/d'} · funding {f'{fu*100:.3f}%' if fu is not None else 'n/d'} · CVD {d.get('cvd',0):+.2f}")
+        oi_tag = " (aggr)" if d.get("oi_aggr") else ""
+        fu_tag = " (aggr)" if d.get("fund_aggr") else ""
+        L.append(f"RS vs BTC {d['rs']:+.1f}% · RVOL {d['rvol']:.1f}x · OI 24h {f'{oi:+.1f}%{oi_tag}' if oi is not None else 'n/d'} · funding {f'{fu*100:.3f}%{fu_tag}' if fu is not None else 'n/d'} · CVD {d.get('cvd',0):+.2f}")
+        ncr, dcr = cross_prices(d["sym"], d["src"], d["real"], d["px"])
+        L.append(f"🔎 Cross-check prezzo: {ncr} fonti · Δmax {dcr:.2f}%" + (" ⚠️ VERIFICA PRIMA DI ESEGUIRE" if dcr > 0.7 else " ✅"))
         L.append("Invalidazione: chiusura H1 oltre SL · BE a +1R · time-stop 22:00 se mai +1R"
                  + (" · ⛔️ no overnight, size ridotta (Tier C)" if d["tier"] == "C" else ""))
     watch = [f"{d['sym']} ({d['dir0']}, {d['score']:.1f})" for d in cands if d not in final][:5]
