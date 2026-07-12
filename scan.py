@@ -603,6 +603,14 @@ def main():
     for d in final:
         already.append({"sym": d["sym"], "dir": d["dir0"], "entry": d["setup"]["entry"]})
     day["ran"] = True
+    # FYI: candidati eccezionali (score>=6.5, RVOL>=2) rimasti fuori per il tetto
+    fyi_seen = day.setdefault("fyi", [])
+    fyi = [d for d in cands if d not in final
+           and d["score"] >= 6.5 and d["rvol"] >= 2.0
+           and not any(p["sym"] == d["sym"] and p["dir"] == d["dir0"] for p in already)
+           and f"{d['dir0']}:{d['sym']}" not in fyi_seen]
+    for d in fyi:
+        fyi_seen.append(f"{d['dir0']}:{d['sym']}")
     state["day"] = day
 
     L = [f"📡 <b>SCAN GIORNALIERO</b> — {now.strftime('%a %d/%m %H:%M')}"]
@@ -641,6 +649,11 @@ def main():
         L.append(f"🔎 Cross-check prezzo: {ncr} fonti · Δmax {dcr:.2f}%" + (" ⚠️ VERIFICA PRIMA DI ESEGUIRE" if dcr > 0.7 else " ✅"))
         L.append("Invalidazione: chiusura H1 oltre SL · BE a +1R · time-stop 22:00 se mai +1R"
                  + (" · ⛔️ no overnight, size ridotta (Tier C)" if d["tier"] == "C" else ""))
+    if fyi:
+        L.append("\n⚠️ <b>Oltre tetto (2/2) — solo FYI, non è una proposta:</b>")
+        for d in fyi[:3]:
+            em = "🟢" if d["dir0"] == "LONG" else "🔴"
+            L.append(f"{em} {d['dir0']} {d['sym']} · score {d['score']:.1f} · RVOL {d['rvol']:.1f}x · prezzo {fmt(d['px'])}")
     watch = [f"{d['sym']} ({d['dir0']}, {d['score']:.1f})" for d in cands if d not in final][:5]
     if watch: L.append(f"\n👀 <b>Watchlist:</b> {', '.join(watch)}")
     L.append("\n<i>Rischio: max 2-2.5% aggregato · funding 18:00 · non è consiglio finanziario</i>")
@@ -650,6 +663,9 @@ def main():
         parts = [f"🔎 <b>Scan {now.strftime('%H:%M')}</b> — niente di nuovo · regime {reg['bias']} · trade oggi {len(already)}/{MAX_TRADES}"]
         if already:
             parts.append("proposti oggi: " + ", ".join(p["dir"] + " " + p["sym"] for p in already))
+        if fyi:
+            parts.append("⚠️ FYI oltre tetto: " + ", ".join(
+                f"{d['dir0']} {d['sym']} (score {d['score']:.1f}, RVOL {d['rvol']:.1f}x)" for d in fyi[:3]))
         if watch:
             parts.append("👀 " + ", ".join(watch))
         msg = "\n".join(parts)
