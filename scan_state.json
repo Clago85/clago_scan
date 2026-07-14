@@ -1,28 +1,25 @@
 {
  "cg_snapshot": {
-  "btc_s": 44.18741959417028,
-  "stables_pct": 11.745976643656114,
-  "total_alts": 506.7875361604437,
-  "ts": 1783973121
+  "btc_s": 44.36496492011639,
+  "stables_pct": 11.693272213029031,
+  "total_alts": 506.68329410346144,
+  "ts": 1784012722
  },
  "day": {
-  "date": "2026-07-13",
+  "date": "2026-07-14",
   "proposed": [
    {
-    "sym": "POL",
+    "sym": "CRV",
     "dir": "LONG",
-    "entry": 0.08128119999999998
+    "entry": 0.22232209999999997
    },
    {
-    "sym": "PENGU",
+    "sym": "TAO",
     "dir": "SHORT",
-    "entry": 0.005929065
+    "entry": 197.3025
    }
   ],
   "ran": true,
-  "fyi": [
-   "LONG:NEAR",
-   "LONG:CRV"
-  ]
+  "fyi": []
  }
 }
