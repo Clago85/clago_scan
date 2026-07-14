@@ -1,9 +1,9 @@
 {
  "cg_snapshot": {
-  "btc_s": 44.66510485979215,
-  "stables_pct": 11.479899511177523,
-  "total_alts": 513.7671868612501,
-  "ts": 1784034324
+  "btc_s": 44.54841811038817,
+  "stables_pct": 11.489474953372675,
+  "total_alts": 515.0292967744505,
+  "ts": 1784037922
  },
  "day": {
   "date": "2026-07-14",
@@ -25,7 +25,8 @@
    "LONG:ETH",
    "LONG:NEAR",
    "SHORT:PENGU",
-   "LONG:LINK"
+   "LONG:LINK",
+   "LONG:PEPE"
   ]
  }
 }
