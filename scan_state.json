@@ -1,9 +1,9 @@
 {
  "cg_snapshot": {
-  "btc_s": 44.421228473547885,
-  "stables_pct": 11.65103274667018,
-  "total_alts": 508.1396699285239,
-  "ts": 1784030722
+  "btc_s": 44.66510485979215,
+  "stables_pct": 11.479899511177523,
+  "total_alts": 513.7671868612501,
+  "ts": 1784034324
  },
  "day": {
   "date": "2026-07-14",
@@ -21,7 +21,11 @@
   ],
   "ran": true,
   "fyi": [
-   "LONG:ENA"
+   "LONG:ENA",
+   "LONG:ETH",
+   "LONG:NEAR",
+   "SHORT:PENGU",
+   "LONG:LINK"
   ]
  }
 }
