@@ -1,9 +1,9 @@
 {
  "cg_snapshot": {
-  "btc_s": 45.00279071685293,
-  "stables_pct": 11.283514171939931,
-  "total_alts": 520.7985630810733,
-  "ts": 1784120718
+  "btc_s": 44.92384225011308,
+  "stables_pct": 11.301720043668249,
+  "total_alts": 520.7211531449273,
+  "ts": 1784124319
  },
  "day": {
   "date": "2026-07-15",
@@ -21,7 +21,9 @@
   ],
   "ran": true,
   "fyi": [
-   "SHORT:SEI"
+   "SHORT:SEI",
+   "LONG:FARTCOIN",
+   "SHORT:FET"
   ]
  }
 }
