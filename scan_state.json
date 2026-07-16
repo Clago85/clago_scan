@@ -1,9 +1,9 @@
 {
  "cg_snapshot": {
-  "btc_s": 44.717432713683785,
-  "stables_pct": 11.472964905877143,
-  "total_alts": 512.2752228353052,
-  "ts": 1784207119
+  "btc_s": 44.798269454687535,
+  "stables_pct": 11.424174459788754,
+  "total_alts": 514.5934104513234,
+  "ts": 1784210720
  },
  "day": {
   "date": "2026-07-16",
@@ -22,7 +22,8 @@
   "ran": true,
   "fyi": [
    "SHORT:BONK",
-   "LONG:INJ"
+   "LONG:INJ",
+   "LONG:VIRTUAL"
   ]
  }
 }
