@@ -1,29 +1,27 @@
 {
  "cg_snapshot": {
-  "btc_s": 44.97908834231727,
-  "stables_pct": 11.320621364439146,
-  "total_alts": 516.8115658882825,
-  "ts": 1784145921
+  "btc_s": 44.869773068031066,
+  "stables_pct": 11.342004944447478,
+  "total_alts": 517.4438222322292,
+  "ts": 1784185518
  },
  "day": {
-  "date": "2026-07-15",
+  "date": "2026-07-16",
   "proposed": [
    {
-    "sym": "STRK",
+    "sym": "WLD",
     "dir": "SHORT",
-    "entry": 0.028541430000000003
+    "entry": 0.3981015
    },
    {
-    "sym": "ZEC",
-    "dir": "LONG",
-    "entry": 558.5564729081028
+    "sym": "AAVE",
+    "dir": "SHORT",
+    "entry": 95.41449
    }
   ],
   "ran": true,
   "fyi": [
-   "SHORT:SEI",
-   "LONG:FARTCOIN",
-   "SHORT:FET"
+   "SHORT:BONK"
   ]
  }
 }
