@@ -1,29 +1,25 @@
 {
  "cg_snapshot": {
-  "btc_s": 44.853347957263246,
-  "stables_pct": 11.446551724697313,
-  "total_alts": 511.8961899257212,
-  "ts": 1784232318
+  "btc_s": 44.42828496693013,
+  "stables_pct": 11.647262954578244,
+  "total_alts": 504.85495373699854,
+  "ts": 1784271920
  },
  "day": {
-  "date": "2026-07-16",
+  "date": "2026-07-17",
   "proposed": [
    {
-    "sym": "WLD",
+    "sym": "BONK",
     "dir": "SHORT",
-    "entry": 0.3981015
+    "entry": 3.2957010000000003e-06
    },
    {
-    "sym": "AAVE",
+    "sym": "JUP",
     "dir": "SHORT",
-    "entry": 95.41449
+    "entry": 0.1924074
    }
   ],
   "ran": true,
-  "fyi": [
-   "SHORT:BONK",
-   "LONG:INJ",
-   "LONG:VIRTUAL"
-  ]
+  "fyi": []
  }
 }
