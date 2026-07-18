@@ -1,9 +1,9 @@
 {
  "cg_snapshot": {
-  "btc_s": 44.945777980582854,
-  "stables_pct": 11.507294949630948,
-  "total_alts": 506.9156921535636,
-  "ts": 1784387120
+  "btc_s": 44.95460203097091,
+  "stables_pct": 11.510431393833793,
+  "total_alts": 506.55664673328806,
+  "ts": 1784390718
  },
  "day": {
   "date": "2026-07-18",
@@ -23,7 +23,9 @@
   "fyi": [
    "SHORT:WLD",
    "SHORT:ROSE",
-   "LONG:ZEC"
+   "LONG:ZEC",
+   "LONG:LTC",
+   "SHORT:KAS"
   ]
  }
 }
