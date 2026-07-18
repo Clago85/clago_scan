@@ -1,31 +1,13 @@
 {
  "cg_snapshot": {
-  "btc_s": 45.08504483719868,
-  "stables_pct": 11.444628223336212,
-  "total_alts": 509.133249481939,
-  "ts": 1784405119
+  "btc_s": 45.183735666153055,
+  "stables_pct": 11.410841736362382,
+  "total_alts": 510.0374102664414,
+  "ts": 1784418047
  },
  "day": {
-  "date": "2026-07-18",
-  "proposed": [
-   {
-    "sym": "FARTCOIN",
-    "dir": "SHORT",
-    "entry": 0.12827159999999999
-   },
-   {
-    "sym": "XPL",
-    "dir": "SHORT",
-    "entry": 0.08404587
-   }
-  ],
-  "ran": true,
-  "fyi": [
-   "SHORT:WLD",
-   "SHORT:ROSE",
-   "LONG:ZEC",
-   "LONG:LTC",
-   "SHORT:KAS"
-  ]
+  "date": "2026-07-19",
+  "proposed": [],
+  "ran": true
  }
 }
