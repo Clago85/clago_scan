@@ -610,7 +610,8 @@ def main():
         final.append(d)
     for d in final:
         already.append({"sym": d["sym"], "dir": d["dir0"], "cluster": d["cluster"],
-                        "entry": d["setup"]["entry"]})
+                        "entry": d["setup"]["entry"], "score": round(d["score"], 1),
+                        "rvol": round(d["rvol"], 2), "hhmm": now.strftime("%H:%M")})
     day["ran"] = True
     state["day"] = day
 
@@ -631,7 +632,7 @@ def main():
     for i, d in enumerate(final, 1):
         s = d["setup"]
         emoji = "🟢" if d["dir0"] == "LONG" else "🔴"
-        L.append(f"\n{emoji} <b>TRADE {i}: {d['dir0']} {d['sym']}</b> ({s['type']}, Tier {d['tier']}, {d['cluster']}, {d['src']})")
+        L.append(f"\n{emoji} <b>TRADE {i}: {d['dir0']} {d['sym']}</b> · score {d['score']:.1f} ({s['type']}, Tier {d['tier']}, {d['cluster']}, {d['src']})")
         L.append(f"Prezzo {fmt(d['px'])} · Entry <b>{fmt(s['entry'])}</b> ({'stop sopra' if s['type']=='breakout' else 'stop sotto' if s['type']=='breakdown' else 'limit'})")
         above = [x for x in (d['pdh'], d['hi20']) if x > s['entry'] * 1.002]
         below = [x for x in (d['pdl'], d['lo20']) if x < s['entry'] * 0.998]
