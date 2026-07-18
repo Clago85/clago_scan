@@ -524,7 +524,6 @@ def main():
     if day.get("date") != today:
         day = {"date": today, "proposed": [], "ran": False}
     already = day["proposed"]
-    remaining = MAX_TRADES - len(already)
     first_run = not day.get("ran", False)
     probe_exchanges()
     reg = regime(state)
@@ -584,11 +583,20 @@ def main():
     cands = sorted([d for d in shortlist if d["dir0"]], key=lambda x: -x["score"])
     final = []
     for d in cands:
-        if len(final) >= remaining: break
         if any(p["sym"] == d["sym"] and p["dir"] == d["dir0"] for p in already): continue
-        if reg["bias"] == "FLAT" and not (d["score"] >= 6.5 and d["rvol"] >= 2.0): continue
-        if reg["bias"] == "LONG" and d["dir0"] == "SHORT" and d["score"] < 6: continue
-        if reg["bias"] == "SHORT" and d["dir0"] == "LONG" and d["score"] < 6: continue
+        # BTC decide l'asticella: allineato basso, contro-regime alto
+        aligned = (reg["bias"] == "LONG" and d["dir0"] == "LONG") or \
+                  (reg["bias"] == "SHORT" and d["dir0"] == "SHORT")
+        if reg["bias"] == "FLAT":
+            if d["rvol"] < 2.0: continue
+            thr = 6.5
+        elif aligned:
+            thr = 5.5
+        elif reg["bias"] == "NEUTRAL":
+            thr = 6.0
+        else:
+            thr = 7.0   # contro-regime: solo eccezionale
+        if d["score"] < thr: continue
         f = d.get("funding")
         if f is not None:
             fthr = crowded_thr(d["cluster"])
@@ -597,20 +605,13 @@ def main():
         setup = build_setup(d, d["dir0"])
         if not setup: continue
         if any(x["cluster"] == d["cluster"] and x["dir0"] == d["dir0"] for x in final): continue
+        if any(p.get("cluster") == d["cluster"] and p["dir"] == d["dir0"] for p in already): continue
         d["setup"] = setup
         final.append(d)
-        if len(final) >= remaining: break
     for d in final:
-        already.append({"sym": d["sym"], "dir": d["dir0"], "entry": d["setup"]["entry"]})
+        already.append({"sym": d["sym"], "dir": d["dir0"], "cluster": d["cluster"],
+                        "entry": d["setup"]["entry"]})
     day["ran"] = True
-    # FYI: candidati eccezionali (score>=6.5, RVOL>=2) rimasti fuori per il tetto
-    fyi_seen = day.setdefault("fyi", [])
-    fyi = [d for d in cands if d not in final
-           and d["score"] >= 6.5 and d["rvol"] >= 2.0
-           and not any(p["sym"] == d["sym"] and p["dir"] == d["dir0"] for p in already)
-           and f"{d['dir0']}:{d['sym']}" not in fyi_seen]
-    for d in fyi:
-        fyi_seen.append(f"{d['dir0']}:{d['sym']}")
     state["day"] = day
 
     L = [f"📡 <b>SCAN GIORNALIERO</b> — {now.strftime('%a %d/%m %H:%M')}"]
@@ -624,7 +625,7 @@ def main():
         L.append("ℹ️ OI/funding: Coinalyze aggregato multi-exchange (Binance inclusa)")
     L.append(gold_line)
     L.append("⚠️ <b>L2 eventi:</b> check manuale macro USA / unlock / listing prima di eseguire")
-    L.append(f"\n<b>Funnel:</b> {len(rows)} → {len(passed)} pre-filtro → {len(shortlist)} scoring → {len(final)} trade · <b>oggi {len(already)}/{MAX_TRADES}</b>")
+    L.append(f"\n<b>Funnel:</b> {len(rows)} → {len(passed)} pre-filtro → {len(shortlist)} scoring → {len(final)} trade · <b>proposti oggi: {len(already)}</b>")
     if not final:
         L.append("\n🚫 <b>OGGI ZERO TRADE.</b> Nessun setup supera i filtri (geometria 2:1, derivati, regime). Il no-trade è una posizione.")
     for i, d in enumerate(final, 1):
@@ -649,23 +650,15 @@ def main():
         L.append(f"🔎 Cross-check prezzo: {ncr} fonti · Δmax {dcr:.2f}%" + (" ⚠️ VERIFICA PRIMA DI ESEGUIRE" if dcr > 0.7 else " ✅"))
         L.append("Invalidazione: chiusura H1 oltre SL · BE a +1R · time-stop 22:00 se mai +1R"
                  + (" · ⛔️ no overnight, size ridotta (Tier C)" if d["tier"] == "C" else ""))
-    if fyi:
-        L.append("\n⚠️ <b>Oltre tetto (2/2) — solo FYI, non è una proposta:</b>")
-        for d in fyi[:3]:
-            em = "🟢" if d["dir0"] == "LONG" else "🔴"
-            L.append(f"{em} {d['dir0']} {d['sym']} · score {d['score']:.1f} · RVOL {d['rvol']:.1f}x · prezzo {fmt(d['px'])}")
     watch = [f"{d['sym']} ({d['dir0']}, {d['score']:.1f})" for d in cands if d not in final][:5]
     if watch: L.append(f"\n👀 <b>Watchlist:</b> {', '.join(watch)}")
     L.append("\n<i>Rischio: max 2-2.5% aggregato · funding 18:00 · non è consiglio finanziario</i>")
     if final or first_run:
         msg = "\n".join(L)
     else:
-        parts = [f"🔎 <b>Scan {now.strftime('%H:%M')}</b> — niente di nuovo · regime {reg['bias']} · trade oggi {len(already)}/{MAX_TRADES}"]
+        parts = [f"🔎 <b>Scan {now.strftime('%H:%M')}</b> — niente di nuovo · regime {reg['bias']} · proposti oggi {len(already)}"]
         if already:
             parts.append("proposti oggi: " + ", ".join(p["dir"] + " " + p["sym"] for p in already))
-        if fyi:
-            parts.append("⚠️ FYI oltre tetto: " + ", ".join(
-                f"{d['dir0']} {d['sym']} (score {d['score']:.1f}, RVOL {d['rvol']:.1f}x)" for d in fyi[:3]))
         if watch:
             parts.append("👀 " + ", ".join(watch))
         msg = "\n".join(parts)
