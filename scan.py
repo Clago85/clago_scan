@@ -437,7 +437,12 @@ def analyze_symbol(a, src, real, chg24, qvol, btc24):
     levels = {"PDH": pd_h, "PDL": pd_l, "WO": wk_open}
     near_name, near_px = min(levels.items(), key=lambda kv: abs(px - kv[1]) / px)
     near_dist = abs(px - near_px) / px
-    return {"sym": a, "src": src, "real": real, "px": px, "qvol": qvol,
+    pv = vv = 0.0
+    for k in (kh4[-42:] if kh4 and len(kh4) >= 20 else []):
+        tp = (float(k[2]) + float(k[3]) + float(k[4])) / 3
+        v = float(k[5]); pv += tp * v; vv += v
+    ext_w = ((px / (pv / vv)) - 1) * 100 if vv > 0 else 0.0
+    return {"sym": a, "src": src, "real": real, "px": px, "qvol": qvol, "ext_w": ext_w,
             "tier": tier_of(qvol), "cluster": UNIVERSE[a], "rvol": rvol,
             "atr_d": a14, "atr_used": atr_used, "prox_thr": prox_thr,
             "p24": chg24, "rs": chg24 - btc24,
@@ -585,6 +590,14 @@ def main():
         if d["dir0"] == "SHORT" and d["l4"] > 0.5: d["dir0"] = None
         d["score"] = d["l3"] + (d["l4"] if d["dir0"] == "LONG"
                                 else -d["l4"] if d["dir0"] == "SHORT" else 0)
+        # penalità estensione: non inseguire movimenti già corsi sulla scala settimanale
+        ext = d.get("ext_w", 0.0); pen = 0.0
+        if d["dir0"] == "LONG" and ext > 8:
+            pen = min(2.0, (ext - 8) * 0.25)
+        elif d["dir0"] == "SHORT" and ext < -8:
+            pen = min(2.0, (-ext - 8) * 0.25)
+        d["ext_pen"] = pen
+        d["score"] -= pen
     cands = sorted([d for d in shortlist if d["dir0"]], key=lambda x: -x["score"])
     final = []
     for d in cands:
@@ -651,7 +664,8 @@ def main():
         oi = d.get("oi_24h"); fu = d.get("funding")
         oi_tag = " (aggr)" if d.get("oi_aggr") else ""
         fu_tag = " (aggr)" if d.get("fund_aggr") else ""
-        L.append(f"RS vs BTC {d['rs']:+.1f}% · RVOL {d['rvol']:.1f}x · OI 24h {f'{oi:+.1f}%{oi_tag}' if oi is not None else 'n/d'} · funding {f'{fu*100:.3f}%{fu_tag}' if fu is not None else 'n/d'} · CVD {d.get('cvd',0):+.2f}")
+        ext_tag = f" · est.7g {d.get('ext_w',0):+.1f}%" + (f" (pen -{d['ext_pen']:.1f})" if d.get("ext_pen") else "")
+        L.append(f"RS vs BTC {d['rs']:+.1f}% · RVOL {d['rvol']:.1f}x{ext_tag} · OI 24h {f'{oi:+.1f}%{oi_tag}' if oi is not None else 'n/d'} · funding {f'{fu*100:.3f}%{fu_tag}' if fu is not None else 'n/d'} · CVD {d.get('cvd',0):+.2f}")
         ncr, dcr = cross_prices(d["sym"], d["src"], d["real"], d["px"])
         L.append(f"🔎 Cross-check prezzo: {ncr} fonti · Δmax {dcr:.2f}%" + (" ⚠️ VERIFICA PRIMA DI ESEGUIRE" if dcr > 0.7 else " ✅"))
         L.append("Invalidazione: chiusura H1 oltre SL · BE a +1R · time-stop 22:00 se mai +1R"
