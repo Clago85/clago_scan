@@ -1,13 +1,23 @@
 {
  "cg_snapshot": {
-  "btc_s": 45.10567512572391,
-  "stables_pct": 11.416605347368431,
-  "total_alts": 510.36733686910145,
-  "ts": 1784444722
+  "btc_s": 45.09778734723352,
+  "stables_pct": 11.419347925595059,
+  "total_alts": 510.20609886189317,
+  "ts": 1784448317
  },
  "day": {
   "date": "2026-07-19",
-  "proposed": [],
+  "proposed": [
+   {
+    "sym": "JUP",
+    "dir": "SHORT",
+    "cluster": "DEFI",
+    "entry": 0.19140839999999998,
+    "score": 6.5,
+    "rvol": 7.0,
+    "hhmm": "10:05"
+   }
+  ],
   "ran": true
  }
 }
