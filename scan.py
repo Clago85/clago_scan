@@ -195,7 +195,7 @@ def kl_binance(sym, interval, limit):
     return get(f"{FAPI}/fapi/v1/klines", {"symbol": sym, "interval": interval, "limit": limit})
 
 
-OKX_BAR = {"1h": "1H", "4h": "4H", "1d": "1Dutc"}
+OKX_BAR = {"30m": "30m", "1h": "1H", "4h": "4H", "1d": "1Dutc"}
 def kl_okx(inst, interval, limit):
     raw = get(f"{OKX}/api/v5/market/candles",
               {"instId": inst, "bar": OKX_BAR[interval], "limit": str(min(limit, 100))})
@@ -203,7 +203,7 @@ def kl_okx(inst, interval, limit):
     return [[int(r[0]), r[1], r[2], r[3], r[4], r[5], 0, 0, 0, None] for r in rows]
 
 
-BGET_GRAN = {"1h": "1H", "4h": "4H", "1d": "1D"}
+BGET_GRAN = {"30m": "30m", "1h": "1H", "4h": "4H", "1d": "1D"}
 def kl_bitget(sym, interval, limit):
     raw = get(f"{BGET}/api/v2/mix/market/candles",
               {"symbol": sym, "productType": "USDT-FUTURES",
@@ -420,11 +420,13 @@ def analyze_symbol(a, src, real, chg24, qvol, btc24):
     kh1 = klines(src, real, "1h", 60)
     kh4 = klines(src, real, "4h", 60)
     kd  = klines(src, real, "1d", 20)
+    k30 = klines(src, real, "30m", 60)
     if not kh1 or len(kh1) < 25 or not kd or len(kd) < 15: return None
     px = float(kh1[-1][4])
-    vols = [float(k[5]) for k in kh1[:-1]]
-    base = sum(vols[-21:-1]) / 20
-    rvol = vols[-1] / base if base > 0 else 0
+    # RVOL su candele 30m chiuse: ogni run da 30 min vede informazione nuova
+    v30 = [float(k[5]) for k in (k30[:-1] if k30 and len(k30) > 22 else kh1[:-1])]
+    base = sum(v30[-21:-1]) / 20
+    rvol = v30[-1] / base if base > 0 else 0
     a14 = atr(kd[:-1], 14)
     today_range = float(kd[-1][2]) - float(kd[-1][3])
     atr_used = today_range / a14 if a14 else 1.0
@@ -439,7 +441,8 @@ def analyze_symbol(a, src, real, chg24, qvol, btc24):
             "tier": tier_of(qvol), "cluster": UNIVERSE[a], "rvol": rvol,
             "atr_d": a14, "atr_used": atr_used, "prox_thr": prox_thr,
             "p24": chg24, "rs": chg24 - btc24,
-            "struct": swing_structure(kh4, 30), "vwap": session_vwap(kh1),
+            "struct": swing_structure(kh4, 30), "struct_h1": swing_structure(kh1, 30),
+            "vwap": session_vwap(kh1),
             "rsi_h1": rsi([float(k[4]) for k in kh1], 14),
             "near": near_name, "near_px": near_px, "near_dist": near_dist,
             "pdh": pd_h, "pdl": pd_l,
@@ -553,11 +556,13 @@ def main():
         s = min(d["rvol"], 4) * 0.8
         s += max(min(abs(d["rs"]) / 2, 2), 0)
         if d["struct"] in ("UP", "DOWN"): s += 1
+        elif d.get("struct_h1") in ("UP", "DOWN"): s += 0.5   # struttura veloce H1 (anticipa l'H4)
         if d["near_dist"] <= d["prox_thr"]: s += 1
         if d["atr_used"] <= ATR_CONSUMED_MAX: s += 0.5
         d["l3"] = s
-        d["dir0"] = "LONG" if (d["rs"] > 0 and d["struct"] != "DOWN") else \
-                    ("SHORT" if (d["rs"] < 0 and d["struct"] != "UP") else None)
+        st_eff = d["struct"] if d["struct"] != "RANGE" else d.get("struct_h1", "RANGE")
+        d["dir0"] = "LONG" if (d["rs"] > 0 and st_eff != "DOWN") else \
+                    ("SHORT" if (d["rs"] < 0 and st_eff != "UP") else None)
     shortlist = sorted([d for d in passed if d["dir0"]], key=lambda x: -x["l3"])[:8]
 
     def _der(d):
