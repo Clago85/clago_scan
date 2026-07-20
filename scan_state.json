@@ -1,57 +1,39 @@
 {
  "cg_snapshot": {
-  "btc_s": 45.036222081493634,
-  "stables_pct": 11.447829262284639,
-  "total_alts": 509.15746768345105,
-  "ts": 1784491518
+  "btc_s": 44.88222878173418,
+  "stables_pct": 11.525096800008901,
+  "total_alts": 505.40065506962196,
+  "ts": 1784531117
  },
  "day": {
-  "date": "2026-07-19",
+  "date": "2026-07-20",
   "proposed": [
    {
-    "sym": "JUP",
-    "dir": "SHORT",
-    "cluster": "DEFI",
-    "entry": 0.19140839999999998,
-    "score": 6.5,
-    "rvol": 7.0,
-    "hhmm": "10:05"
-   },
-   {
-    "sym": "ZEC",
-    "dir": "LONG",
-    "cluster": "ALONE",
-    "entry": 559.2070959549866,
-    "score": 8.4,
-    "rvol": 4.78,
-    "hhmm": "11:05"
-   },
-   {
-    "sym": "BGB",
-    "dir": "SHORT",
-    "cluster": "ALONE",
-    "entry": 1.6185798,
-    "score": 6.3,
-    "rvol": 5.97,
-    "hhmm": "12:05"
-   },
-   {
-    "sym": "ROSE",
-    "dir": "SHORT",
-    "cluster": "AI",
-    "entry": 0.005282712,
-    "score": 7.2,
-    "rvol": 3.95,
-    "hhmm": "13:05"
-   },
-   {
-    "sym": "APT",
+    "sym": "DOT",
     "dir": "SHORT",
     "cluster": "L1",
-    "entry": 0.5976018,
-    "score": 6.5,
-    "rvol": 3.16,
-    "hhmm": "14:05"
+    "entry": 0.803196,
+    "score": 7.1,
+    "rvol": 2.13,
+    "hhmm": "09:05"
+   },
+   {
+    "sym": "WLD",
+    "dir": "SHORT",
+    "cluster": "AI",
+    "entry": 0.35274690000000003,
+    "score": 7.1,
+    "rvol": 3.51,
+    "hhmm": "09:05"
+   },
+   {
+    "sym": "UNI",
+    "dir": "SHORT",
+    "cluster": "DEFI",
+    "entry": 3.4165799999999997,
+    "score": 6.2,
+    "rvol": 3.08,
+    "hhmm": "09:05"
    }
   ],
   "ran": true
